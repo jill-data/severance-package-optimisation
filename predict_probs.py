@@ -41,7 +41,7 @@ def scale(X, scaler):
 
 def preprocess(X, encoder, scaler, to_drop_cols):
     X_processed = X.drop(to_drop_cols, axis=1)
-    X_processed = X.dropna()
+    X_processed = X_processed.dropna()
     X_processed = encode(X_processed, encoder)
     X_processed = scale(X_processed, scaler)
 
@@ -66,10 +66,12 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 encoder = OneHotEncoder(drop='first', sparse=False)
 encoder.fit(X[cat_cols])
 
-X = encode(X_train, encoder)
-
 # Scale data
 scaler = StandardScaler()
+
+X = X.drop(to_drop_cols, axis=1)
+X = X.dropna()
+X = encode(X, encoder)
 scaler.fit(X)
 
 X_train = preprocess(X_train, encoder, scaler, to_drop_cols)
@@ -175,7 +177,7 @@ final_model = LogisticRegression(
 to_predict = pd.read_csv('./data/employee_attrition_lyon.csv')
 
 X_to_predict = preprocess(to_predict, encoder, scaler, to_drop_cols)
-to_predict['RCC_acceptance'] = final_model.predict(X_to_predict)[:, 1]
+X_to_predict['RCC_acceptance'] = final_model.predict_proba(X_to_predict)[:, 1]
 
 to_predict.to_csv('./output/lyon_acceptance.csv', index=False)
 # endregion
