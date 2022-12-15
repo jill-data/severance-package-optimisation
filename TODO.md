@@ -29,3 +29,6 @@ Linear prog
 - Objective: minimise the severance package cost
 - travel frequency:
   - if ppl in these department already traveled frequently -> can we not fire them and they will quit themselves? what if they don't quit and demand subsidies for travelling?`
+
+# Future work
+- Protected attributes: Could have added them to the optimisation model as additional constraints and optimise directly

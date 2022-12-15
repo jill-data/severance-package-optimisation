@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from sklearn.impute import KNNImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     ConfusionMatrixDisplay, accuracy_score, confusion_matrix, roc_auc_score,
@@ -13,7 +14,7 @@ data_raw = pd.read_csv('./data/employee_attrition_previous_closure.csv')
 
 # region preprocess data
 cat_cols = ['BusinessTravel', 'Department', 'EducationField', 'Gender', 'JobRole', 'MaritalStatus', 'OverTime']
-to_drop_cols = ['EmployeeNumber', 'EmployeeCount', 'StandardHours', 'Over18']
+to_drop_cols = ['EmployeeNumber', 'EmployeeCount', 'StandardHours', 'Over18', 'DistanceFromHome']
 
 
 def encode(X, encoder):
@@ -38,12 +39,20 @@ def scale(X, scaler):
         index=X.index
     )
 
+def impute(X, imputer):
+    return pd.DataFrame(
+        imputer.transform(X),
+        columns=X.columns,
+        index=X.index
+    )
+
 
 def preprocess(X, encoder, scaler, to_drop_cols):
     X_processed = X.drop(to_drop_cols, axis=1)
-    X_processed = X_processed.dropna()
+    X_processed['Age'] = X_processed['Age'].fillna(X_processed['TotalWorkingYears'] + 18)
     X_processed = encode(X_processed, encoder)
     X_processed = scale(X_processed, scaler)
+    X_processed = impute(X_processed, imputer)
 
     return X_processed
 
@@ -52,8 +61,9 @@ def binarise_y(y):
     return y.map({'Yes': 1, 'No': 0})
 
 
-# Drop na
-data = data_raw.dropna()
+# Work on a copy
+data = data_raw.copy()
+data['Age'] = data['Age'].fillna(data['TotalWorkingYears'] + 18)
 
 # Features and labels
 X = data.drop('Attrition', axis=1)
@@ -64,19 +74,25 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 
 # Encode categorical variables
 encoder = OneHotEncoder(drop='first', sparse=False)
-encoder.fit(X[cat_cols])
+encoder.fit(X_train[cat_cols])
+X_train = encode(X_train, encoder)
+
+# Drop redundant columns
+X_train = X_train.drop(to_drop_cols, axis=1)
 
 # Scale data
 scaler = StandardScaler()
+scaler = scaler.fit(X_train)
+X_train = scale(X_train, scaler)
 
-X = X.drop(to_drop_cols, axis=1)
-X = X.dropna()
-X = encode(X, encoder)
-scaler.fit(X)
+# Impute missing values
+imputer = KNNImputer(n_neighbors=5)
+imputer = imputer.fit(X_train)
+X_train = impute(X_train, imputer)
 
-X_train = preprocess(X_train, encoder, scaler, to_drop_cols)
-X_test = preprocess(X_test, encoder, scaler, to_drop_cols)
 y_train = binarise_y(y_train)
+
+X_test = preprocess(X_test, encoder, scaler, to_drop_cols)
 y_test = binarise_y(y_test)
 
 # endregion
@@ -177,7 +193,7 @@ final_model = LogisticRegression(
 to_predict = pd.read_csv('./data/employee_attrition_lyon.csv')
 
 X_to_predict = preprocess(to_predict, encoder, scaler, to_drop_cols)
-X_to_predict['RCC_acceptance'] = final_model.predict_proba(X_to_predict)[:, 1]
+to_predict['RCC_acceptance'] = final_model.predict_proba(X_to_predict)[:, 1]
 
 to_predict.to_csv('./output/lyon_acceptance.csv', index=False)
 # endregion
